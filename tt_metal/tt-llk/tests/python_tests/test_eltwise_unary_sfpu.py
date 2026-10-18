@@ -1645,17 +1645,12 @@ _BF16_EXHAUSTIVE_OPS = [
 ]
 # Boards where the op keeps its stock kernel, which this sweep does not test.
 _BF16_STOCK_BOARDS = {}
-# Special input classes where the kernel returns its stock kernel's class instead of torch's.
+# The stored word, per board, at each special input class where the kernel returns its stock
+# kernel's result instead of torch's; the sweep expects that word's class there.
 _BF16_STOCK_SPECIALS = {
     MathOperation.LogWithBase: {
-        ChipArchitecture.BLACKHOLE: (
-            "neg_subnormal",
-            "pos_subnormal",
-        ),
-        ChipArchitecture.WORMHOLE: (
-            "neg_subnormal",
-            "pos_subnormal",
-        ),
+        ChipArchitecture.BLACKHOLE: {"neg_subnormal": 0xFF80, "pos_subnormal": 0xFF80},
+        ChipArchitecture.WORMHOLE: {"neg_subnormal": 0xFF80, "pos_subnormal": 0xFF80},
     },
 }
 
@@ -1778,13 +1773,14 @@ def test_eltwise_unary_sfpu_bf16_exhaustive(mathop, approx_mode, max_ulp):
     nonfinite = mathop in SPECIALS_READY_OPS and specials_safe(
         formats.input_format, formats.output_format, dest_acc
     )
-    if _gate_unspecified_nan_sign(mathop, formats, dest_acc, nonfinite):
+    nan_sign = _gate_unspecified_nan_sign(mathop, formats, dest_acc, nonfinite)
+    if nonfinite:
         specials += [float("inf"), float("-inf"), float("nan"), _NEGATIVE_NAN]
-    kept = _BF16_STOCK_SPECIALS.get(mathop, {}).get(TestConfig.CHIP_ARCH, ())
-    specials = [value for value in specials if _special_class(value) not in kept]
+    stock = _BF16_STOCK_SPECIALS.get(mathop, {}).get(TestConfig.CHIP_ARCH, {})
     # Through the bit pattern: a float-to-bfloat16 cast drops a NaN's sign.
     bits = torch.tensor(specials, dtype=torch.float32).view(torch.int32) >> 16
-    src_A[-len(specials) :] = bits.to(torch.int16).view(torch.bfloat16).to(src_A.dtype)
+    tail = slice(len(src_A) - len(specials), None)
+    src_A[tail] = bits.to(torch.int16).view(torch.bfloat16).to(src_A.dtype)
     golden = get_golden_generator(UnarySFPUGolden)(
         mathop, src_A, formats.output_format, dest_acc, formats.input_format, dimensions
     )
@@ -1856,9 +1852,18 @@ def test_eltwise_unary_sfpu_bf16_exhaustive(mathop, approx_mode, max_ulp):
             ]
         )
 
-    wrong = (
-        output_class(golden[-len(specials) :]) != output_class(result[-len(specials) :])
-    ).any(0)
+    expected = golden[tail].clone()
+    for lane, value in enumerate(specials):
+        if stock.get(_special_class(value)) is not None:
+            word = torch.tensor([stock[_special_class(value)]], dtype=torch.int32).to(
+                torch.int16
+            )
+            expected[lane] = word.view(torch.bfloat16).to(expected.dtype)[0]
+    wrong = output_class(expected) != output_class(result[tail])
+    if nonfinite and not nan_sign:
+        # The pack stores a NaN the kernel makes as an infinity, whose sign Wormhole leaves unspecified.
+        wrong[3] &= ~result[tail].float().isinf()
+    wrong = wrong.any(0)
     assert not wrong.any(), (
         f"{mathop.name}: {int(wrong.sum())} of {len(specials)} special inputs "
         f"{specials} change output class or sign"

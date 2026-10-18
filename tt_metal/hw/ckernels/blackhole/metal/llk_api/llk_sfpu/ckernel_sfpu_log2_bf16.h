@@ -24,13 +24,13 @@ inline bool bf16_dest_log2() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_log2_bf16() {
-    ckernel::sfpu::bf16::calculate_log_fused<ckernel::sfpu::Log2Bf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::log2::calculate_log_fused<ckernel::sfpu::Log2Bf16Config, ITERATIONS>();
 }
 inline void init_log2_bf16() {
     if (bf16_dest_log2()) {
-        ckernel::sfpu::bf16::init_log_fused<ckernel::sfpu::Log2Bf16Config>();
+        ckernel::sfpu::bf16::log2::init_log_fused<ckernel::sfpu::Log2Bf16Config>();
     }
 }
 
