@@ -7,7 +7,7 @@
 #include "ckernel_defs.h"
 #include "sfpi.h"
 
-namespace ckernel::sfpu::bf16
+namespace ckernel::sfpu::bf16::reciprocal
 {
 // The mantissa_quadratic reciprocal (root_n = 1), two DEST rows per replay. Each row:
 //   s = sign(x) 2^(254 - e) = (0x7F800000 - bits(x) with its mantissa cleared) * 0.5
@@ -73,4 +73,4 @@ inline void calculate_newton_reciprocal()
         TTI_REPLAY(0, Config::kBodySlots, 0, 0);
     }
 }
-} // namespace ckernel::sfpu::bf16
+} // namespace ckernel::sfpu::bf16::reciprocal

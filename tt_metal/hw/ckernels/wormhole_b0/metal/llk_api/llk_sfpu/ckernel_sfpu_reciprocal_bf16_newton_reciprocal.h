@@ -5,9 +5,9 @@
 #include "ckernel.h"
 #include "ckernel_defs.h"
 #include "sfpi.h"
-#include "sfpu/ckernel_sfpu_bf16_newton_reciprocal.h"
+#include "sfpu/ckernel_sfpu_reciprocal_bf16_newton_reciprocal.h"
 
-namespace ckernel::sfpu::bf16 {
+namespace ckernel::sfpu::bf16::reciprocal {
 template <typename Config>
 inline void init_newton_reciprocal() {
     static_assert(
@@ -15,4 +15,4 @@ inline void init_newton_reciprocal() {
         Config::kMagic == 0x7f800000u);
     addr_mod_t{.srca = {.incr = 0}, .srcb = {.incr = 0}, .dest = {.incr = 2}}.set(ADDR_MOD_6);
 }
-}  // namespace ckernel::sfpu::bf16
+}  // namespace ckernel::sfpu::bf16::reciprocal

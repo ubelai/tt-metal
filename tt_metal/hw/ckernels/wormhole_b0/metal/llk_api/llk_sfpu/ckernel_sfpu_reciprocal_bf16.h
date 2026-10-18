@@ -12,7 +12,7 @@ struct ReciprocalBf16Config {
     static constexpr uint32_t kBodySlots = 26u;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_newton_reciprocal.h"
+#include "ckernel_sfpu_reciprocal_bf16_newton_reciprocal.h"
 
 namespace ckernel::sfpu {
 
@@ -26,11 +26,11 @@ inline bool bf16_dest_reciprocal() {
 }
 template <int ITERATIONS = 8>
 inline void calculate_reciprocal_bf16() {
-    ckernel::sfpu::bf16::calculate_newton_reciprocal<ckernel::sfpu::ReciprocalBf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::reciprocal::calculate_newton_reciprocal<ckernel::sfpu::ReciprocalBf16Config, ITERATIONS>();
 }
 inline void init_reciprocal_bf16() {
     if (bf16_dest_reciprocal()) {
-        ckernel::sfpu::bf16::init_newton_reciprocal<ckernel::sfpu::ReciprocalBf16Config>();
+        ckernel::sfpu::bf16::reciprocal::init_newton_reciprocal<ckernel::sfpu::ReciprocalBf16Config>();
     }
 }
 
