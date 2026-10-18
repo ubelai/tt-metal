@@ -1194,7 +1194,7 @@ std::optional<std::map<std::string, std::string>> get_bf16_kernel_defines(
     std::string op_name;
     switch (op.type()) {
         case UnaryOpType::LGAMMA:
-            // The generated kernel is faster than the op's own path on Blackhole only.
+            // The generated kernel installs on Blackhole only.
             if (arch != tt::ARCH::BLACKHOLE) {
                 return std::nullopt;
             }
