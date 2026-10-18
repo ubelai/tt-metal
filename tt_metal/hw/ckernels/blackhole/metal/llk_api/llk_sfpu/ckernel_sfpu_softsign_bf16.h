@@ -1,0 +1,34 @@
+// SPDX-FileCopyrightText: © 2026 Tenstorrent AI ULC
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+#include <cstdint>
+namespace ckernel::sfpu {
+struct SoftsignBf16Config {
+    static constexpr uint32_t kBodySlots = 19u;
+    static constexpr uint32_t kBoundBits = 0x44000000u;
+};
+}  // namespace ckernel::sfpu
+#include "ckernel_sfpu_softsign_bf16_abs_denominator.h"
+
+namespace ckernel::sfpu {
+
+// The kernel is fitted on BF16 data; the SFPU reads DEST in the math thread's SrcB format.
+inline bool bf16_dest_softsign() {
+#if defined(TRISC_MATH) || defined(LLK_TRISC_MATH)
+    return ckernel::math::src_zero_flag_srcb_fmt == static_cast<std::uint32_t>(DataFormat::Float16_b);
+#else
+    return false;
+#endif
+}
+template <int ITERATIONS = 32>
+inline void calculate_softsign_bf16() {
+    ckernel::sfpu::bf16::softsign::calculate_abs_denominator<ckernel::sfpu::SoftsignBf16Config, ITERATIONS>();
+}
+inline void init_softsign_bf16() {
+    if (bf16_dest_softsign()) {
+        ckernel::sfpu::bf16::softsign::init_abs_denominator<ckernel::sfpu::SoftsignBf16Config>();
+    }
+}
+
+}  // namespace ckernel::sfpu

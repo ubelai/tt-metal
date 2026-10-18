@@ -13,7 +13,7 @@ struct SoftsignBf16Config {
     static constexpr bool kRawNegativeInfinity = false;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_abs_denominator.h"
+#include "ckernel_sfpu_softsign_bf16_abs_denominator.h"
 
 namespace ckernel::sfpu {
 
@@ -25,13 +25,13 @@ inline bool bf16_dest_softsign() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_softsign_bf16() {
-    ckernel::sfpu::bf16::calculate_abs_denominator<ckernel::sfpu::SoftsignBf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::softsign::calculate_abs_denominator<ckernel::sfpu::SoftsignBf16Config, ITERATIONS>();
 }
 inline void init_softsign_bf16() {
     if (bf16_dest_softsign()) {
-        ckernel::sfpu::bf16::init_abs_denominator<ckernel::sfpu::SoftsignBf16Config>();
+        ckernel::sfpu::bf16::softsign::init_abs_denominator<ckernel::sfpu::SoftsignBf16Config>();
     }
 }
 

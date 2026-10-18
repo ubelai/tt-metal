@@ -5,8 +5,11 @@
 // Canonical selected replay arithmetic. Callers own replay count and DST lifecycle.
 #include <cstdint>
 
-namespace sfpi
+namespace ckernel::sfpu::ttpoly::softsign
 {
+using namespace ::sfpi;
+using ::sfpi::DataLayout;
+
 // Instructions abs_denominator_wh_suffix issues.
 template <bool LateRound, bool RawNegativeInfinity = true>
 constexpr std::uint32_t abs_denominator_wh_suffix_slots()
@@ -94,4 +97,4 @@ inline void abs_denominator_wh_suffix()
     }
     TTI_SFPSTORE(4, 0, Advance, 0);
 }
-} // namespace sfpi
+} // namespace ckernel::sfpu::ttpoly::softsign
