@@ -14,7 +14,7 @@ struct CoshBf16Config {
     static constexpr uint32_t kComposeScaleBits = 0x3e800100u;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_hyperbolic_exp.h"
+#include "ckernel_sfpu_cosh_bf16_hyperbolic_exp.h"
 
 namespace ckernel::sfpu {
 
@@ -26,13 +26,13 @@ inline bool bf16_dest_cosh() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_cosh_bf16() {
-    ckernel::sfpu::bf16::calculate_hyperbolic_exp<ckernel::sfpu::CoshBf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::cosh::calculate_hyperbolic_exp<ckernel::sfpu::CoshBf16Config, ITERATIONS>();
 }
 inline void init_cosh_bf16() {
     if (bf16_dest_cosh()) {
-        ckernel::sfpu::bf16::init_hyperbolic_exp<ckernel::sfpu::CoshBf16Config>();
+        ckernel::sfpu::bf16::cosh::init_hyperbolic_exp<ckernel::sfpu::CoshBf16Config>();
     }
 }
 
