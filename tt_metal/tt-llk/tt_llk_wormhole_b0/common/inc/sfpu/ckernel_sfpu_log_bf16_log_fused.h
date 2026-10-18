@@ -7,7 +7,7 @@
 #include "ckernel_defs.h"
 #include "sfpi.h"
 
-namespace ckernel::sfpu::bf16
+namespace ckernel::sfpu::bf16::log
 {
 constexpr std::uint32_t kLogFusedHold    = ADDR_MOD_3;
 constexpr std::uint32_t kLogFusedAdvance = ADDR_MOD_2;
@@ -83,4 +83,4 @@ inline void calculate_log_fused()
         TTI_REPLAY(0, Config::kBodySlots, 0, 0);
     }
 }
-} // namespace ckernel::sfpu::bf16
+} // namespace ckernel::sfpu::bf16::log
