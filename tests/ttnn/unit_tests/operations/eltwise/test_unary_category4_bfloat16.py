@@ -14,7 +14,7 @@ from tests.ttnn.unit_tests.operations.eltwise.eltwise_test_utils import (
     float_to_bf16_bits,
     bf16_bits_to_float,
 )
-from models.common.utility_functions import is_blackhole
+from tt_py_test_utils_common.utility_functions import is_blackhole
 
 pytestmark = pytest.mark.use_module_device
 
@@ -523,3 +523,36 @@ def test_polygamma_bf16_unflushed_zero_and_subnormal_inputs(device):
         f"{(~ok).sum().item()} of {ok.numel()} inputs off torch and stock; first input 0x{bits[~ok][0].item():04x} "
         f"stored {actual[~ok][0].item()!r}, torch {reference[~ok][0].item()!r}"
     )
+
+
+def test_polygamma_bf16_nonfinite_inputs(device):
+    """+-Inf and +-NaN through TT-NN, where the kernel returns its stock kernel's word for some of them.
+
+    Each must store torch's result as the BF16 pack stores it (NaN as an infinity), or the word STOCK
+    lists for that input on the board, as {input bits: word}.
+    """
+    board = "blackhole" if ttnn.device.is_blackhole(device) else "wormhole_b0"
+    if board not in ("blackhole", "wormhole_b0"):
+        pytest.skip(f"ttnn.polygamma keeps its stock kernel on {board}")
+    STOCK = {"blackhole": {0x7FC0: 0x0000, 0xFFC0: 0x0000}}
+    bits = torch.tensor([0x7F80, 0xFF80, 0x7FC0, 0xFFC0], dtype=torch.int32).repeat(256)
+    x = bits.to(torch.int16).view(torch.bfloat16).reshape(1, 1, 32, 32)
+    tt_x = ttnn.from_torch(x, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT, device=device)
+
+    def stored(t):
+        return t.to(torch.bfloat16).to(torch.float64).flatten()
+
+    actual = stored(ttnn.to_torch(ttnn.polygamma(tt_x, 1)))
+    reference = ttnn.get_golden_function(ttnn.polygamma)(x.flatten().to(torch.float64), 1).to(torch.float64)
+    expected = stored(reference)
+    for input_bits, word in STOCK.get(board, {}).items():
+        expected[bits == input_bits] = stored(
+            torch.tensor([word], dtype=torch.int32).to(torch.int16).view(torch.bfloat16)
+        )
+    spacing = 2.0 ** (torch.floor(torch.log2(expected.abs().clamp(min=torch.finfo(torch.bfloat16).tiny))) - 7)
+    ok = (actual == expected) | (torch.isfinite(expected) & ((actual - expected).abs() < spacing))
+    # A NaN result reaches L1 as a NaN or as an infinity of either sign.
+    ok |= torch.isnan(expected) & (torch.isnan(actual) | torch.isinf(actual))
+    assert (
+        ok.all()
+    ), f"input 0x{bits[~ok][0].item():04x} stored {actual[~ok][0].item()!r}, expected {expected[~ok][0].item()!r}"

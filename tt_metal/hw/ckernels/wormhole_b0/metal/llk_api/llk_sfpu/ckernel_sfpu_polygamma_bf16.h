@@ -18,7 +18,7 @@ struct PolygammaBf16Config {
     static constexpr bool kFiniteReferencePrecedence = true;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_inverse_square.h"
+#include "ckernel_sfpu_polygamma_bf16_inverse_square.h"
 
 namespace ckernel::sfpu {
 
@@ -30,13 +30,13 @@ inline bool bf16_dest_polygamma() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_polygamma_bf16() {
-    ckernel::sfpu::bf16::calculate_inverse_square<ckernel::sfpu::PolygammaBf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::polygamma::calculate_inverse_square<ckernel::sfpu::PolygammaBf16Config, ITERATIONS>();
 }
 inline void init_polygamma_bf16() {
     if (bf16_dest_polygamma()) {
-        ckernel::sfpu::bf16::init_inverse_square<ckernel::sfpu::PolygammaBf16Config>();
+        ckernel::sfpu::bf16::polygamma::init_inverse_square<ckernel::sfpu::PolygammaBf16Config>();
     }
 }
 
