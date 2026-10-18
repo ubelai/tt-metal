@@ -31,7 +31,7 @@ inline bool bf16_dest_atan() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_atan_bf16() {
     ckernel::sfpu::bf16::atan::calculate_reciprocal_complement<ckernel::sfpu::AtanBf16Config, ITERATIONS>();
 }
