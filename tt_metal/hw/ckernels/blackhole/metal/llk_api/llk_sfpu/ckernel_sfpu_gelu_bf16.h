@@ -37,7 +37,7 @@ struct GeluBf16Config {
     static constexpr unsigned kOriginPatterns = 2u;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_zone_affine_even_decay.h"
+#include "ckernel_sfpu_gelu_bf16_zone_affine_even_decay.h"
 
 namespace ckernel::sfpu {
 
@@ -49,10 +49,11 @@ inline bool bf16_dest_gelu() {
     return false;
 #endif
 }
-// The Blackhole whole-tile call as the fitter's scheduler issues it (ttpoly/sfpu_schedule.py): the
-// compiled instructions of ckernel::sfpu::bf16::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, 32> in
-// a stall-filling order, rows addressed by their immediates, constants held in LRegs. It stores the same word for every
-// BF16 input.
+// The Blackhole whole-tile call as tt-polynomial-fitter's scheduler issues it (ttpoly/sfpu_schedule.py
+// in tenstorrent/tt-polynomial-fitter, not in this repository): the compiled instructions of
+// ckernel::sfpu::bf16::gelu::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, 32> in a stall-filling
+// order, rows addressed by their immediates, constants held in LRegs. It stores the same word for every BF16 input;
+// other ITERATIONS run the compiled body itself.
 inline void calculate_gelu_bf16_scheduled() {
     TTI_SFPLOADI(7, 2, 0xd21b);
     TTI_SFPLOADI(6, 2, 0xcf9f);
@@ -565,17 +566,17 @@ inline void calculate_gelu_bf16_scheduled() {
     }
 }
 
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_gelu_bf16() {
     if constexpr (ITERATIONS == 32) {
         calculate_gelu_bf16_scheduled();
     } else {
-        ckernel::sfpu::bf16::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, ITERATIONS>();
+        ckernel::sfpu::bf16::gelu::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, ITERATIONS>();
     }
 }
 inline void init_gelu_bf16() {
     if (bf16_dest_gelu()) {
-        ckernel::sfpu::bf16::init_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config>();
+        ckernel::sfpu::bf16::gelu::init_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config>();
     }
 }
 

@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: © 2026 Tenstorrent AI ULC
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-namespace sfpi {
+namespace ckernel::sfpu::ttpoly::gelu {
+using namespace ::sfpi;
+using ::sfpi::DataLayout;
 // Closed anonymous three-leaf form.  The body evaluates one bounded P2 exp2
 // leaf, one P5 affine-even core, and one P3 negative decay correction.  The
 // decay correction is multiplied before exponent scaling so a normal final
@@ -151,4 +153,4 @@ inline void zone_affine_even_decay_tile(Prepare prepare, Finalize finalize) {
     }
 }
 
-}  // namespace sfpi
+}  // namespace ckernel::sfpu::ttpoly::gelu

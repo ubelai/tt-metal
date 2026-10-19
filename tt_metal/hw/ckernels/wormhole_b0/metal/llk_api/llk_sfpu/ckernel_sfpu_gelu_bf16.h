@@ -37,7 +37,7 @@ struct GeluBf16Config {
     static constexpr unsigned kOriginPatterns = 2u;
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_zone_affine_even_decay.h"
+#include "ckernel_sfpu_gelu_bf16_zone_affine_even_decay.h"
 
 namespace ckernel::sfpu {
 
@@ -49,13 +49,13 @@ inline bool bf16_dest_gelu() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_gelu_bf16() {
-    ckernel::sfpu::bf16::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::gelu::calculate_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config, ITERATIONS>();
 }
 inline void init_gelu_bf16() {
     if (bf16_dest_gelu()) {
-        ckernel::sfpu::bf16::init_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config>();
+        ckernel::sfpu::bf16::gelu::init_zone_affine_even_decay<ckernel::sfpu::GeluBf16Config>();
     }
 }
 
