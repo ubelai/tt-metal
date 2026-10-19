@@ -4,8 +4,11 @@
 
 #include <cstdint>
 
-namespace sfpi
+namespace ckernel::sfpu::ttpoly::expm1
 {
+using namespace ::sfpi;
+using ::sfpi::DataLayout;
+
 template <class Config, unsigned Hold, unsigned Advance, class Enter>
 inline void factored_cw_bh(Enter enter)
 {
@@ -77,4 +80,4 @@ inline void factored_cw_bh(Enter enter)
         same_row_suffix();
     }
 }
-} // namespace sfpi
+} // namespace ckernel::sfpu::ttpoly::expm1

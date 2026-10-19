@@ -4,6 +4,7 @@
 
 import math
 import struct
+from dataclasses import dataclass
 from itertools import product
 
 import pytest
@@ -62,6 +63,8 @@ from helpers.test_variant_parameters import (
     SFPU_SHIFT_AMOUNT,
     TILE_COUNT,
     DestSync,
+    RuntimeParameter,
+    TemplateParameter,
     generate_input_dim,
 )
 from helpers.utils import passed_test
@@ -1641,36 +1644,87 @@ _BF16_EXHAUSTIVE_OPS = [
     (MathOperation.Expm1, ApproximationMode.No, 1),
 ]
 # Boards where the op keeps its stock kernel, which this sweep does not test.
-_BF16_STOCK_BOARDS = {
-    MathOperation.Expm1: (ChipArchitecture.WORMHOLE,),
-}
-# Special input classes where the kernel returns its stock kernel's class instead of torch's.
+_BF16_STOCK_BOARDS = {}
+# The stored word, per board, at each special input class where the kernel returns its stock
+# kernel's result instead of torch's; the sweep expects that word's class there.
 _BF16_STOCK_SPECIALS = {
     MathOperation.Expm1: {
-        ChipArchitecture.BLACKHOLE: (
-            "neg_subnormal",
-            "neg_zero",
-        )
+        ChipArchitecture.BLACKHOLE: {
+            "neg_subnormal": 0x0000,
+            "neg_zero": 0x0000,
+            "pos_subnormal": 0x0000,
+        },
+        ChipArchitecture.WORMHOLE: {
+            "neg_subnormal": 0x0000,
+            "neg_zero": 0x0000,
+            "pos_subnormal": 0x0000,
+        },
     },
 }
+
+
+# Consecutive rows of _BF16_EXHAUSTIVE_OPS that share one ELF of sources/eltwise_unary_sfpu_bf16_sweep_test.cpp.
+# Building it is most of a row's time; the first row to need it builds it and the others reuse it.
+_BF16_SWEEP_GROUP = 4
+
+
+@dataclass
+class _SWEEP_OPERATIONS(TemplateParameter):
+    """The (operation, approximation mode) pairs one sweep ELF compiles into its math thread."""
+
+    rows: tuple = ()
+
+    def convert_to_cpp(self) -> str:
+        operations = ", ".join(
+            f"SfpuType::{mathop.cpp_enum_value}" for mathop, _ in self.rows
+        )
+        modes = ", ".join(mode.cpp_enum_value for _, mode in self.rows)
+        return (
+            f"constexpr SfpuType SWEEP_OPERATIONS[] = {{{operations}}};\n"
+            f"constexpr bool SWEEP_APPROXIMATION[] = {{{modes}}};"
+        )
+
+
+@dataclass
+class _SWEEP_INDEX(RuntimeParameter):
+    """Which of its ELF's operations a run executes."""
+
+    index: int = 0
+
+    def convert_to_cpp(self) -> str:
+        return f"constexpr std::uint32_t SWEEP_INDEX = {self.index};"
+
+    def convert_to_struct_fields(self) -> tuple[str, str]:
+        return "std::uint32_t SWEEP_INDEX;", "I"
 
 
 # Ops whose BF16 setup runs from an init their stock instances share.
 _BF16_SETUP_OPS = [
     MathOperation.Expm1,
 ]
-# Every instance of those ops on BF16 and FP32 data, approximate and accurate, either DEST.
-# The setup runs after the shared init, so an instance the BF16 kernel does not replace must
-# still pass the nightly sweep's own check.
-_BF16_SETUP_PARAMS = _sweep_params(
-    [
-        InputOutputFormat(DataFormat.Float16_b, DataFormat.Float16_b),
-        InputOutputFormat(DataFormat.Float32, DataFormat.Float32),
-    ],
-    _BF16_SETUP_OPS,
-    [ApproximationMode.No, ApproximationMode.Yes],
-    STANDARD_DIMENSIONS,
-)
+# The (approximation, fast mode) instances each op's BF16 kernel replaces with FP32 DEST off, read
+# from its kernel's gate. Export compiles every other instance's init and tile from this tree and
+# from stock and refuses the PR unless they are identical, so only these instances run here.
+_BF16_REPLACED_INSTANCES = {
+    MathOperation.Expm1: (
+        (ApproximationMode.No, FastMode.No),
+        (ApproximationMode.No, FastMode.Yes),
+    ),
+}
+_BF16_SETUP_PARAMS = [
+    params
+    for params in _sweep_params(
+        [
+            InputOutputFormat(DataFormat.Float16_b, DataFormat.Float16_b),
+            InputOutputFormat(DataFormat.Float32, DataFormat.Float32),
+        ],
+        _BF16_SETUP_OPS,
+        [ApproximationMode.No, ApproximationMode.Yes],
+        STANDARD_DIMENSIONS,
+    )
+    if params[4] == DestAccumulation.No
+    and (params[1], params[3]) in _BF16_REPLACED_INSTANCES[params[2]]
+]
 
 
 @pytest.mark.parametrize(
@@ -1678,9 +1732,10 @@ _BF16_SETUP_PARAMS = _sweep_params(
     _BF16_SETUP_PARAMS,
     ids=[build_param_id(_UNARY_SWEEP_ARGNAMES, p) for p in _BF16_SETUP_PARAMS],
 )
-def test_eltwise_unary_sfpu_bf16_setup_keeps_stock(
+def test_eltwise_unary_sfpu_bf16_replaced_instances(
     formats, approx_mode, mathop, fast_mode, dest_acc, input_dimensions
 ):
+    """Every instance the BF16 kernel replaces, on BF16 and FP32 data, against the sweep's golden."""
     test_eltwise_unary_sfpu(
         formats, approx_mode, mathop, fast_mode, dest_acc, input_dimensions
     )
@@ -1724,13 +1779,14 @@ def test_eltwise_unary_sfpu_bf16_exhaustive(mathop, approx_mode, max_ulp):
     nonfinite = mathop in SPECIALS_READY_OPS and specials_safe(
         formats.input_format, formats.output_format, dest_acc
     )
-    if _gate_unspecified_nan_sign(mathop, formats, dest_acc, nonfinite):
+    nan_sign = _gate_unspecified_nan_sign(mathop, formats, dest_acc, nonfinite)
+    if nonfinite:
         specials += [float("inf"), float("-inf"), float("nan"), _NEGATIVE_NAN]
-    kept = _BF16_STOCK_SPECIALS.get(mathop, {}).get(TestConfig.CHIP_ARCH, ())
-    specials = [value for value in specials if _special_class(value) not in kept]
+    stock = _BF16_STOCK_SPECIALS.get(mathop, {}).get(TestConfig.CHIP_ARCH, {})
     # Through the bit pattern: a float-to-bfloat16 cast drops a NaN's sign.
     bits = torch.tensor(specials, dtype=torch.float32).view(torch.int32) >> 16
-    src_A[-len(specials) :] = bits.to(torch.int16).view(torch.bfloat16).to(src_A.dtype)
+    tail = slice(len(src_A) - len(specials), None)
+    src_A[tail] = bits.to(torch.int16).view(torch.bfloat16).to(src_A.dtype)
     golden = get_golden_generator(UnarySFPUGolden)(
         mathop, src_A, formats.output_format, dest_acc, formats.input_format, dimensions
     )
@@ -1742,20 +1798,26 @@ def test_eltwise_unary_sfpu_bf16_exhaustive(mathop, approx_mode, max_ulp):
         TILE_DIMENSIONS,
         BlocksCalculationAlgorithm.Standard,
     )
+    row = _BF16_EXHAUSTIVE_OPS.index((mathop, approx_mode, max_ulp))
+    first = row - row % _BF16_SWEEP_GROUP
+    group = tuple(
+        (op, mode)
+        for op, mode, _ in _BF16_EXHAUSTIVE_OPS[first : first + _BF16_SWEEP_GROUP]
+    )
     configuration = TestConfig(
-        "sources/eltwise_unary_sfpu_test.cpp",
+        "sources/eltwise_unary_sfpu_bf16_sweep_test.cpp",
         formats,
         templates=[
             generate_input_dim(dimensions, dimensions),
-            APPROX_MODE(approx_mode),
             FAST_MODE(FastMode.No),
             CLAMP_NEGATIVE(True),
-            MATH_OP(mathop=mathop),
+            _SWEEP_OPERATIONS(group),
         ],
         runtimes=[
             TILE_COUNT(tile_cnt_A),
             NUM_BLOCKS(num_blocks),
             NUM_TILES_IN_BLOCK(num_tiles_in_block),
+            _SWEEP_INDEX(row - first),
         ],
         variant_stimuli=StimuliConfig(
             src_A,
@@ -1796,9 +1858,18 @@ def test_eltwise_unary_sfpu_bf16_exhaustive(mathop, approx_mode, max_ulp):
             ]
         )
 
-    wrong = (
-        output_class(golden[-len(specials) :]) != output_class(result[-len(specials) :])
-    ).any(0)
+    expected = golden[tail].clone()
+    for lane, value in enumerate(specials):
+        if stock.get(_special_class(value)) is not None:
+            word = torch.tensor([stock[_special_class(value)]], dtype=torch.int32).to(
+                torch.int16
+            )
+            expected[lane] = word.view(torch.bfloat16).to(expected.dtype)[0]
+    wrong = output_class(expected) != output_class(result[tail])
+    if nonfinite and not nan_sign:
+        # The pack stores a NaN the kernel makes as an infinity, whose sign Wormhole leaves unspecified.
+        wrong[3] &= ~result[tail].float().isinf()
+    wrong = wrong.any(0)
     assert not wrong.any(), (
         f"{mathop.name}: {int(wrong.sum())} of {len(specials)} special inputs "
         f"{specials} change output class or sign"

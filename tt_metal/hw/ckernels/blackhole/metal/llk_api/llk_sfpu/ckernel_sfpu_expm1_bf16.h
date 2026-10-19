@@ -19,7 +19,7 @@ struct Expm1Bf16Config {
         __builtin_bit_cast(float, 0x3c0914c2u)};
 };
 }  // namespace ckernel::sfpu
-#include "ckernel_sfpu_bf16_factored_cw_expm1.h"
+#include "ckernel_sfpu_expm1_bf16_factored_cw_expm1.h"
 
 namespace ckernel::sfpu {
 
@@ -31,13 +31,13 @@ inline bool bf16_dest_expm1() {
     return false;
 #endif
 }
-template <int ITERATIONS = 8>
+template <int ITERATIONS = 32>
 inline void calculate_expm1_bf16() {
-    ckernel::sfpu::bf16::calculate_factored_cw_expm1<ckernel::sfpu::Expm1Bf16Config, ITERATIONS>();
+    ckernel::sfpu::bf16::expm1::calculate_factored_cw_expm1<ckernel::sfpu::Expm1Bf16Config, ITERATIONS>();
 }
 inline void init_expm1_bf16() {
     if (bf16_dest_expm1()) {
-        ckernel::sfpu::bf16::init_factored_cw_expm1<ckernel::sfpu::Expm1Bf16Config>();
+        ckernel::sfpu::bf16::expm1::init_factored_cw_expm1<ckernel::sfpu::Expm1Bf16Config>();
     }
 }
 
